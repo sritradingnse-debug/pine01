@@ -1,0 +1,22 @@
+2025-11-14T10:27:00.000+05:30]: BULLISH DIVERGENCE DETECTED AT BAR 22650 Close: 25854.5 | Recovering from Low: true | MHL: true | MACDAboveSignal: true
+[2025-11-14T10:28:00.000+05:30]: Bar 22651 | Close: 25862.5 | MACD: -226.5892 | IsSwingLow: false | SwingLowArraySize: 5
+[2025-11-14T10:28:00.000+05:30]: Last5SwingLows: 25848(-580.2f) 25838(-591.2f) 25856(-308.2f) 25855(-289.2f) 25854.5(-247.2f) | LowestSwingLow: 25838 | MACDAtLowest: -591.2f | MACDHigherLow: true | MACDAboveSignal: true | BullDiv: false
+[2025-11-14T10:29:00.000+05:30]: Bar 22652 | Close: 25854.5 | MACD: -216.1341 | IsSwingLow: false | SwingLowArraySize: 5
+[2025-11-14T10:29:00.000+05:30]: Last5SwingLows: 25848(-580.2f) 25838(-591.2f) 25856(-308.2f) 25855(-289.2f) 25854.5(-247.2f) | LowestSwingLow: 25838 | MACDAtLowest: -591.2f | MACDHigherLow: true | MACDAboveSignal: true | BullDiv: false
+[2025-11-14T10:30:00.000+05:30]: Bar 22653 | Close: 25848 | MACD: -213.7112 | IsSwingLow: true | SwingLowArraySize: 5
+[2025-11-14T10:30:00.000+05:30]: Last5SwingLows: 25838(-591.2f) 25856(-308.2f) 25855(-289.2f) 25854.5(-247.2f) 25848(-214.2f) | LowestSwingLow: 25838 | MACDAtLowest: -591.2f | MACDHigherLow: true | MACDAboveSignal: true | BullDiv: true
+[2025-11-14T10:30:00.000+05:30]: BULLISH DIVERGENCE DETECTED AT BAR 22653 Close: 25848 | Recovering from Low: true | MHL: true | MACDAboveSignal: true
+[2025-11-14T10:31:00.000+05:30]: Bar 22654 | Close: 25862.5 | MACD: -202.9996 | IsSwingLow: false | SwingLowArraySize: 5
+[2025-11-14T10:31:00.000+05:30]: Last5SwingLows: 25838(-591.2f) 25856(-308.2f) 25855(-289.2f) 25854.5(-247.2f) 25848(-214.2f) | LowestSwingLow: 25838 | MACDAtLowest: -591.2f | MACDHigherLow: true | MACDAboveSignal: true | BullDiv: false
+[2025-11-14T10:31:00.000+05:30]: NEW SWING HIGH at Bar 22654 | Close: 25862.5 | MACD: -203.00
+[2025-11-14T10:32:00.000+05:30]: Bar 22655 | Close: 25861 | MACD: -193.9863 | IsSwingLow: false | SwingLowArraySize: 5
+[2025-11-14T10:32:00.000+05:30]: Last5SwingLows: 25838(-591.2f) 25856(-308.2f) 25855(-289.2f) 25854.5(-247.2f) 25848(-214.2f) | LowestSwingLow: 25838 | MACDAtLowest: -591.2f | MACDHigherLow: true | MACDAboveSignal: true | BullDiv: false
+[2025-11-14T10:39:00.000+05:30]: Last5SwingLows: 25855(-289.2f) 25854.5(-247.2f) 25848(-214.2f) 25848(-189.2f) 25841.5(-191.2f) | LowestSwingLow: 25841.5 | MACDAtLowest: -191.2f | MACDHigherLow: true | MACDAboveSignal: true | BullDiv: false
+[2025-11-14T10:40:00.000+05:30]: Bar 22663 | Close: 25842 | MACD: -146.6210 | IsSwingLow: false | SwingLowArraySize: 5
+[2025-11-14T10:40:00.000+05:30]: Last5SwingLows: 25855(-289.2f) 25854.5(-247.2f) 25848(-214.2f) 25848(-189.2f) 25841.5(-191.2f) | LowestSwingLow: 25841.5 | MACDAtLowest: -191.2f | MACDHigherLow: true | MACDAboveSignal: true | BullDiv: false
+[2025-11-14T10:41:00.000+05:30]: Bar 22664 | Close: 25824 | MACD: -153.7877 | IsSwingLow: true | SwingLowArraySize: 5
+[2025-11-14T10:41:00.000+05:30]: Last5SwingLows: 25854.5(-247.2f) 25848(-214.2f) 25848(-189.2f) 25841.5(-191.2f) 25824(-154.2f) | LowestSwingLow: 25824 | MACDAtLowest: -154.2f | MACDHigherLow: true | MACDAboveSignal: true | BullDiv: false
+[2025-11-14T10:42:00.000+05:30]: Bar 22665 | Close: 25821 | MACD: -164.5447 | IsSwingLow: true | SwingLowArraySize: 5
+[2025-11-14T10:42:00.000+05:30]: Last5SwingLows: 25848(-214.2f) 25848(-189.2f) 25841.5(-191.2f) 25824(-154.2f) 25821(-165.2f) | LowestSwingLow: 25821 | MACDAtLowest: -165.2f | MACDHigherLow: true | MACDAboveSignal: true | BullDiv: false
+[2025-11-14T10:43:00.000+05:30]: Bar 22666 | Close: 25838 | MACD: -161.4450 | IsSwingLow: false | SwingLowArraySize: 5
+[2025-11-14T10:43:00.000+05:30]: Last5SwingLows: 25848(-214.2f) 25848(-189.2f) 25841.5(-191.2f) 25824(-154.2f) 25821(-165.2f) | LowestSwingLow: 25821 | MACDAtLowest: -165.2f | MACDHigherLow: true | MACDAboveSignal: true | BullDiv: false
