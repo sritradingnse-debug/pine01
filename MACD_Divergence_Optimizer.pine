@@ -8,8 +8,10 @@ signal_length = input.int(9, "Signal Smoothing")
 lookback = input.int(75, "Lookback Bars")
 minStrength = input.float(0.5, "Min Divergence Strength (%)")
 
-// ====== MACD CALCULATION ======
-macd = ta.ema(close, fast_length) - ta.ema(close, slow_length)
+// ====== MACD CALCULATION (Volume-Weighted) ======
+fast_ma = ta.ema(close * volume, fast_length) / ta.ema(volume, fast_length)
+slow_ma = ta.ema(close * volume, slow_length) / ta.ema(volume, slow_length)
+macd = fast_ma - slow_ma
 signal = ta.ema(macd, signal_length)
 hist = macd - signal
 
