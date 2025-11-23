@@ -163,17 +163,23 @@ f_renderOrdersFromCache() =>
     if array.size(cachedOrderTimes) == 0
         [0, 0]
     else
-        // Log current bar lookup info
-        log.info("Bar Time: " + str.tostring(barTime) + " | Current Symbol: " + currentSymbol)
+        // Get first order time for reference
+        firstOrderTime = array.get(cachedOrderTimes, 0)
         
         timeMatches = 0
         symbolMatches = 0
+        
+        // Log EVERY bar time to debug
+        log.info("Bar: " + str.tostring(bar_index) + " | Time: " + str.tostring(barTime))
         
         // Find all orders matching current bar time
         for i = 0 to array.size(cachedOrderTimes) - 1
             orderTime = array.get(cachedOrderTimes, i)
             
-            if orderTime == barTime
+            // Round order time to nearest 30-second bar
+            orderTimeRounded = (orderTime / 30000) * 30000
+            
+            if orderTimeRounded == barTime
                 timeMatches += 1
                 orderSymbol = array.get(cachedOrderSymbols, i)
                 orderType = array.get(cachedOrderTypes, i)
@@ -186,7 +192,11 @@ f_renderOrdersFromCache() =>
                 if symbolMatch
                     symbolMatches += 1
                 
-                log.info("  Order[" + str.tostring(i) + "]: Symbol=" + orderSymbol + " | Time=" + str.tostring(orderTime) + " | " + (symbolMatch ? "✓ Symbol Match" : "✗ Symbol Mismatch"))
+                // Log ALL cache hits (remove time window restriction)
+                if timeMatches == 1  // Log header only once per bar
+                    log.info("⏱ CACHE HIT - Bar Time: " + str.tostring(barTime) + " | Order Time: " + str.tostring(orderTime) + " | Rounded: " + str.tostring(orderTimeRounded) + " | Symbol: " + currentSymbol)
+                
+                log.info("  Order[" + str.tostring(i) + "]: " + orderSymbol + " | " + orderType + " | " + str.tostring(quantity) + "@" + str.tostring(price) + " | " + (symbolMatch ? "✓" : "✗"))
                 
                 if matchSymbol and not symbolMatch
                     continue
@@ -214,8 +224,9 @@ f_renderOrdersFromCache() =>
                     else
                         sellOrderCount += 1
         
+        // Log summary for ALL matches (remove time window restriction)
         if timeMatches > 0
-            log.info("  Time Match: " + str.tostring(timeMatches) + " orders | Symbol Match: " + str.tostring(symbolMatches) + " orders | Rendered: " + str.tostring(buyOrderCount + sellOrderCount))
+            log.info("  Summary: " + str.tostring(timeMatches) + " time matches | " + str.tostring(symbolMatches) + " symbol matches | " + str.tostring(buyOrderCount + sellOrderCount) + " rendered")
         
         [buyOrderCount, sellOrderCount]
 
