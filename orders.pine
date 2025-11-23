@@ -1,0 +1,251 @@
+//@version=6
+indicator(title="Trade Orders Visualizer", shorttitle="Orders", overlay=true, max_boxes_count=500, max_lines_count=500)
+
+// ============================================
+// TRADE ORDERS VISUALIZER
+// ============================================
+// Paste your CSV trade data in the input field below
+// Expected CSV format: symbol,trade_type,quantity,price,order_execution_time
+// Example: NIFTY25NOVFUT,buy,75,26167,2025-11-21T09:23:22
+// ============================================
+
+// Input for CSV data
+ordersData = input.text_area(defval="NIFTY25NOV25900CE,,2025-11-21,NSE,FO,,buy,false,75.000000,234.650000,1137989,1000000047874455,2025-11-21T10:23:44,2025-11-25\nNIFTY25NOV25900CE,,2025-11-21,NSE,FO,,buy,false,75.000000,234.650000,1137990,1000000047874455,2025-11-21T10:23:44,2025-11-25\nNIFTY25NOV25900CE,,2025-11-21,NSE,FO,,buy,false,75.000000,234.650000,1137991,1000000047874455,2025-11-21T10:23:44,2025-11-25", title="Trade Orders CSV Data", group="Data Input")
+
+// Display settings
+showBuyOrders = input(true, "Show Buy Orders", group="Display")
+showSellOrders = input(true, "Show Sell Orders", group="Display")
+buyColor = input(color.new(color.green, 20), "Buy Order Color", group="Display")
+sellColor = input(color.new(color.red, 20), "Sell Order Color", group="Display")
+textColorBuy = input(color.green, "Buy Text Color", group="Display")
+textColorSell = input(color.red, "Sell Text Color", group="Display")
+orderSize = input.string("small", "Label Size", options=["tiny", "small", "normal"], group="Display")
+matchSymbol = input(true, "Match Current Symbol", tooltip="Only show orders for the current chart symbol", group="Display")
+
+// Global cache storage for parsed orders (initialized once)
+var array<int> cachedOrderTimes = array.new<int>()
+var array<string> cachedOrderSymbols = array.new<string>()
+var array<string> cachedOrderTypes = array.new<string>()
+var array<float> cachedOrderQuantities = array.new<float>()
+var array<float> cachedOrderPrices = array.new<float>()
+var bool cacheInitialized = false
+
+// Convert size string to size object
+f_getSize(sizeStr) =>
+    sizeStr == "tiny" ? size.tiny : sizeStr == "small" ? size.small : size.normal
+
+// Parse CSV symbol to TradingView format
+// Example: NIFTY25NOV25900CE -> NSE:NIFTY251125C25900
+// Format: baseSym + date + month + year(25) + typeOP + strike
+f_parseCSVSymbol(csvSymbol) =>
+    s = str.upper(csvSymbol)
+    
+    // Find month position (first occurrence of 3-letter month)
+    monthPos = str.pos(s, "JAN")
+    monthNum = "01"
+    
+    if na(monthPos)
+        monthPos := str.pos(s, "FEB")
+        monthNum := "02"
+    if na(monthPos)
+        monthPos := str.pos(s, "MAR")
+        monthNum := "03"
+    if na(monthPos)
+        monthPos := str.pos(s, "APR")
+        monthNum := "04"
+    if na(monthPos)
+        monthPos := str.pos(s, "MAY")
+        monthNum := "05"
+    if na(monthPos)
+        monthPos := str.pos(s, "JUN")
+        monthNum := "06"
+    if na(monthPos)
+        monthPos := str.pos(s, "JUL")
+        monthNum := "07"
+    if na(monthPos)
+        monthPos := str.pos(s, "AUG")
+        monthNum := "08"
+    if na(monthPos)
+        monthPos := str.pos(s, "SEP")
+        monthNum := "09"
+    if na(monthPos)
+        monthPos := str.pos(s, "OCT")
+        monthNum := "10"
+    if na(monthPos)
+        monthPos := str.pos(s, "NOV")
+        monthNum := "11"
+    if na(monthPos)
+        monthPos := str.pos(s, "DEC")
+        monthNum := "12"
+    
+    // Extract components
+    baseSym = str.substring(s, 0, monthPos - 2)           // Everything before date (e.g., NIFTY)
+    dateStr = str.substring(s, monthPos - 2, monthPos)    // 2 chars before month = expiry date (e.g., 25)
+    strikeAndType = str.substring(s, monthPos + 3)        // Everything after month (e.g., 25900CE)
+    
+    // Extract option type (CE or PE)
+    typeOp = str.contains(strikeAndType, "CE") ? "C" : str.contains(strikeAndType, "PE") ? "P" : ""
+    
+    // Extract strike (remove CE/PE from end)
+    strike = str.replace(str.replace(strikeAndType, "CE", ""), "PE", "")
+    
+    // Build final symbol: NSE:NIFTY + date + month + year(25) + typeOP + strike
+    // Format: NSE:NIFTY251125C25900
+    result = "NSE:" + baseSym + dateStr + monthNum + "25" + typeOp + strike
+    result
+
+// Parse CSV data once and cache it in maps
+f_initializeOrderCache() =>
+    if str.length(ordersData) == 0
+        true  // Empty data
+    else if cacheInitialized and array.size(cachedOrderTimes) > 0
+        true  // Already initialized, skip re-parsing
+    else
+        log.info("Initializing cache...")
+        // Clear existing cache
+        array.clear(cachedOrderTimes)
+        array.clear(cachedOrderSymbols)
+        array.clear(cachedOrderTypes)
+        array.clear(cachedOrderQuantities)
+        array.clear(cachedOrderPrices)
+        
+        lines = str.split(ordersData, "\n")
+        log.info("Parsing " + str.tostring(array.size(lines)) + " lines from CSV")
+        
+        for i = 0 to math.min(array.size(lines) - 1, 450)
+            line = array.get(lines, i)
+            if str.length(line) > 0
+                parts = str.split(line, ",")
+                log.info("Line " + str.tostring(i) + ": " + str.tostring(array.size(parts)) + " parts")
+                
+                if array.size(parts) >= 13
+                    csvSymbol = str.trim(array.get(parts, 0))
+                    tradeType = str.lower(str.trim(array.get(parts, 6)))
+                    quantity = str.tonumber(str.trim(array.get(parts, 8)))
+                    price = str.tonumber(str.trim(array.get(parts, 9)))
+                    orderTimeStr = str.trim(array.get(parts, 12))
+                    
+                    log.info("  Symbol: " + csvSymbol + " | Type: " + tradeType + " | Qty: " + str.tostring(quantity) + " | Price: " + str.tostring(price) + " | Time: " + orderTimeStr)
+                    
+                    // Parse order execution time (ISO format: 2025-11-21T10:23:58)
+                    orderTimeMs = int(na)
+                    if str.length(orderTimeStr) >= 19
+                        yVal = int(str.tonumber(str.substring(orderTimeStr, 0, 4)))
+                        moVal = int(str.tonumber(str.substring(orderTimeStr, 5, 7)))
+                        dVal = int(str.tonumber(str.substring(orderTimeStr, 8, 10)))
+                        hVal = int(str.tonumber(str.substring(orderTimeStr, 11, 13)))
+                        miVal = int(str.tonumber(str.substring(orderTimeStr, 14, 16)))
+                        sVal = int(str.tonumber(str.substring(orderTimeStr, 17, 19)))
+                        
+                        orderTimeMs := timestamp(yVal, moVal, dVal, hVal, miVal, sVal)
+                        log.info("  Parsed timestamp: " + str.tostring(orderTimeMs))
+                    
+                    // Cache the parsed order data
+                    if not na(orderTimeMs) and not na(price) and not na(quantity)
+                        array.push(cachedOrderTimes, orderTimeMs)
+                        array.push(cachedOrderSymbols, f_parseCSVSymbol(csvSymbol))
+                        array.push(cachedOrderTypes, tradeType)
+                        array.push(cachedOrderQuantities, quantity)
+                        array.push(cachedOrderPrices, price)
+                        log.info("  ✓ Cached order")
+        
+        log.info("Cache initialized with " + str.tostring(array.size(cachedOrderTimes)) + " orders")
+        true
+
+// Render orders for current bar time from cache
+f_renderOrdersFromCache() =>
+    barTime = time
+    currentSymbol = syminfo.tickerid
+    buyOrderCount = 0
+    sellOrderCount = 0
+    
+    // Only render if cache is populated
+    if array.size(cachedOrderTimes) == 0
+        [0, 0]
+    else
+        // Log current bar lookup info
+        log.info("Bar Time: " + str.tostring(barTime) + " | Current Symbol: " + currentSymbol)
+        
+        timeMatches = 0
+        symbolMatches = 0
+        
+        // Find all orders matching current bar time
+        for i = 0 to array.size(cachedOrderTimes) - 1
+            orderTime = array.get(cachedOrderTimes, i)
+            
+            if orderTime == barTime
+                timeMatches += 1
+                orderSymbol = array.get(cachedOrderSymbols, i)
+                orderType = array.get(cachedOrderTypes, i)
+                quantity = array.get(cachedOrderQuantities, i)
+                price = array.get(cachedOrderPrices, i)
+                
+                // Check symbol match
+                symbolMatch = str.contains(str.upper(currentSymbol), str.upper(orderSymbol)) or str.contains(str.upper(orderSymbol), str.upper(currentSymbol))
+                
+                if symbolMatch
+                    symbolMatches += 1
+                
+                log.info("  Order[" + str.tostring(i) + "]: Symbol=" + orderSymbol + " | Time=" + str.tostring(orderTime) + " | " + (symbolMatch ? "✓ Symbol Match" : "✗ Symbol Mismatch"))
+                
+                if matchSymbol and not symbolMatch
+                    continue
+                
+                isBuy = orderType == "buy"
+                isSell = orderType == "sell"
+                shouldShow = (isBuy and showBuyOrders) or (isSell and showSellOrders)
+                
+                if shouldShow
+                    oColor = isBuy ? buyColor : sellColor
+                    textCol = isBuy ? textColorBuy : textColorSell
+                    oLabel = isBuy ? "🔼 BUY" : "🔽 SELL"
+                    
+                    // Position above/below based on order type
+                    labelY = isBuy ? high + (high * 0.015) : low - (low * 0.015)
+                    
+                    // Render label on matching bar
+                    labelText = oLabel + "\n" + str.tostring(quantity, "0") + "@" + str.tostring(price, "#.##")
+                    label.new(x=bar_index, y=labelY, text=labelText, 
+                              color=oColor, textcolor=textCol, size=f_getSize(orderSize), 
+                              style=isBuy ? label.style_label_down : label.style_label_up)
+                    
+                    if isBuy
+                        buyOrderCount += 1
+                    else
+                        sellOrderCount += 1
+        
+        if timeMatches > 0
+            log.info("  Time Match: " + str.tostring(timeMatches) + " orders | Symbol Match: " + str.tostring(symbolMatches) + " orders | Rendered: " + str.tostring(buyOrderCount + sellOrderCount))
+        
+        [buyOrderCount, sellOrderCount]
+
+// Parse and visualize orders
+f_parseAndPlot() =>
+    // Render orders from cache for current bar
+    f_renderOrdersFromCache()
+
+// Initialize cache on first run only
+if not cacheInitialized
+    f_initializeOrderCache()
+    cacheInitialized := true
+
+// Execute order parsing
+[totalBuys, totalSells] = f_parseAndPlot()
+
+// Summary info panel
+var table infoTable = table.new(position=position.top_right, columns=2, rows=4, 
+                                 bgcolor=color.new(color.black, 80), 
+                                 border_color=color.gray, 
+                                 border_width=2)
+
+table.cell(infoTable, 0, 0, text="SYMBOL:", text_color=color.white, text_size=size.small, bgcolor=color.new(color.gray, 70))
+table.cell(infoTable, 1, 0, text=syminfo.tickerid, text_color=color.yellow, text_size=size.small)
+
+table.cell(infoTable, 0, 1, text="BUY ORDERS:", text_color=color.green, text_size=size.small, bgcolor=color.new(color.gray, 70))
+table.cell(infoTable, 1, 1, text=str.tostring(totalBuys), text_color=color.green, text_size=size.small)
+
+table.cell(infoTable, 0, 2, text="SELL ORDERS:", text_color=color.red, text_size=size.small, bgcolor=color.new(color.gray, 70))
+table.cell(infoTable, 1, 2, text=str.tostring(totalSells), text_color=color.red, text_size=size.small)
+
+table.cell(infoTable, 0, 3, text="TOTAL:", text_color=color.white, text_size=size.small, bgcolor=color.new(color.gray, 70))
+table.cell(infoTable, 1, 3, text=str.tostring(totalBuys + totalSells), text_color=color.white, text_size=size.small)

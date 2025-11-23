@@ -178,10 +178,10 @@ plot(signal, title="Signal", color=#FF6D00, linewidth=2)
 
 // Plot divergence markers on the MACD line
 // Bullish divergence triangle (green, pointing up) at MACD value
-plotshape(bullishDiv ? macd : na, title="Bullish Divergence", style=shape.triangleup, size=size.small, color=color.green, location=location.absolute)
+plotshape(bullishDiv ? macd : na, title="Bullish Divergence", style=shape.triangleup, size=size.tiny, color=color.green, location=location.absolute)
 
 // Bearish divergence triangle (red, pointing down) at MACD value
-plotshape(bearishDiv ? macd : na, title="Bearish Divergence", style=shape.triangledown, size=size.small, color=color.red, location=location.absolute)
+plotshape(bearishDiv ? macd : na, title="Bearish Divergence", style=shape.triangledown, size=size.tiny, color=color.red, location=location.absolute)
 
 // ====== DEBUG INFO ======
 // Log values for debugging - every bar
