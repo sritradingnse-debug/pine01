@@ -9,8 +9,8 @@ indicator(title="Trade Orders Visualizer", shorttitle="Orders", overlay=true, ma
 // Example: NIFTY25NOVFUT,buy,75,26167,2025-11-21T09:23:22
 // ============================================
 
-// Input for CSV data
-ordersData = input.text_area(defval="NIFTY25NOV25900CE,,2025-11-21,NSE,FO,,buy,false,75.000000,234.650000,1137989,1000000047874455,2025-11-21T10:23:44,2025-11-25\nNIFTY25NOV25900CE,,2025-11-21,NSE,FO,,buy,false,75.000000,234.650000,1137990,1000000047874455,2025-11-21T10:23:44,2025-11-25\nNIFTY25NOV25900CE,,2025-11-21,NSE,FO,,buy,false,75.000000,234.650000,1137991,1000000047874455,2025-11-21T10:23:44,2025-11-25", title="Trade Orders CSV Data", group="Data Input")
+// Input for CSV data (copy-paste CSV content below or from http://localhost:8000/NOV21.csv)
+ordersData = input.text_area(defval="NIFTY25NOV25900CE,,2025-11-21,NSE,FO,,buy,false,75.000000,234.650000,1137989,1000000047874455,2025-11-21T10:23:44,2025-11-25\nNIFTY25NOV25900CE,,2025-11-21,NSE,FO,,buy,false,75.000000,234.650000,1137990,1000000047874455,2025-11-21T10:23:44,2025-11-25\nNIFTY25NOV25900CE,,2025-11-21,NSE,FO,,buy,false,75.000000,234.650000,1137991,1000000047874455,2025-11-21T10:23:44,2025-11-25", title="Trade Orders CSV Data (from http://localhost:8000/NOV21.csv)", group="Data Input")
 
 // Display settings
 showBuyOrders = input(true, "Show Buy Orders", group="Display")
@@ -241,11 +241,11 @@ f_renderOrdersFromCache() =>
             avgBuyPrice := avgBuyPrice / array.size(buyPrices)
             
             textCol = textColorBuy
-            labelY = avgBuyPrice
+            labelY = high + (high * 0.015)
             labelText = "🔼 BUY\n" + str.tostring(totalBuyQty, "0") + "@" + str.tostring(avgBuyPrice, "#.##")
             label.new(x=bar_index, y=labelY, text=labelText, 
                       color=color.new(color.white, 100), textcolor=textCol, size=f_getSize(orderSize), 
-                      style=label.style_label_center)
+                      style=label.style_label_down)
             buyOrderCount := array.size(buyQtys)
         
         // Render aggregated sell orders
@@ -258,11 +258,11 @@ f_renderOrdersFromCache() =>
             avgSellPrice := avgSellPrice / array.size(sellPrices)
             
             textCol = textColorSell
-            labelY = avgSellPrice
+            labelY = low - (low * 0.015)
             labelText = "🔽 SELL\n" + str.tostring(totalSellQty, "0") + "@" + str.tostring(avgSellPrice, "#.##")
             label.new(x=bar_index, y=labelY, text=labelText, 
                       color=color.new(color.white, 100), textcolor=textCol, size=f_getSize(orderSize), 
-                      style=label.style_label_center)
+                      style=label.style_label_up)
             sellOrderCount := array.size(sellQtys)
         
         // Log summary for ALL matches
