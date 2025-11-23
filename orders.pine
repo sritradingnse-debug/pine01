@@ -169,15 +169,20 @@ f_renderOrdersFromCache() =>
         timeMatches = 0
         symbolMatches = 0
         
-        // Log EVERY bar time to debug
-        log.info("Bar: " + str.tostring(bar_index) + " | Time: " + str.tostring(barTime))
+        // Only log bars within ±2 hours of first order time to reduce spam
+        logWindowStart = firstOrderTime - (2 * 60 * 60 * 1000)  // 2 hours before
+        logWindowEnd = firstOrderTime + (2 * 60 * 60 * 1000)    // 2 hours after
+        
+        if barTime >= logWindowStart and barTime <= logWindowEnd
+            log.info("Bar: " + str.tostring(bar_index) + " | Time: " + str.tostring(barTime) + " | Order Time: " + str.tostring(firstOrderTime))
         
         // Find all orders matching current bar time
         for i = 0 to array.size(cachedOrderTimes) - 1
             orderTime = array.get(cachedOrderTimes, i)
             
             // Round order time to nearest 30-second bar
-            orderTimeRounded = (orderTime / 30000) * 30000
+            // Math.round equivalent: (x + 15000) / 30000 * 30000
+            orderTimeRounded = math.round(orderTime / 30000) * 30000
             
             if orderTimeRounded == barTime
                 timeMatches += 1
@@ -192,7 +197,7 @@ f_renderOrdersFromCache() =>
                 if symbolMatch
                     symbolMatches += 1
                 
-                // Log ALL cache hits (remove time window restriction)
+                // Log ALL cache hits
                 if timeMatches == 1  // Log header only once per bar
                     log.info("⏱ CACHE HIT - Bar Time: " + str.tostring(barTime) + " | Order Time: " + str.tostring(orderTime) + " | Rounded: " + str.tostring(orderTimeRounded) + " | Symbol: " + currentSymbol)
                 
@@ -224,7 +229,7 @@ f_renderOrdersFromCache() =>
                     else
                         sellOrderCount += 1
         
-        // Log summary for ALL matches (remove time window restriction)
+        // Log summary for ALL matches
         if timeMatches > 0
             log.info("  Summary: " + str.tostring(timeMatches) + " time matches | " + str.tostring(symbolMatches) + " symbol matches | " + str.tostring(buyOrderCount + sellOrderCount) + " rendered")
         
