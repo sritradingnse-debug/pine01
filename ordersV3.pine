@@ -32,6 +32,7 @@ var bool cacheInitialized = false
 
 // Stack to track open positions (FIFO matching)
 var array<string> positionStack = array.new<string>()  // Format: "type|qty|price"
+var float globalRunningPL = 0.0  // Global cumulative P&L
 
 // Calculate P&L by matching orders with stack (FIFO)
 f_calculatePLWithStack(orderType, quantity, price, posStack) =>
@@ -294,10 +295,12 @@ f_renderOrdersFromCache() =>
     currentSymbol = syminfo.tickerid
     buyOrderCount = 0
     sellOrderCount = 0
+    barBuyPL = 0.0
+    barSellPL = 0.0
     
     // Only render if cache is populated
     if array.size(cachedOrderTimes) == 0
-        [0, 0]
+        [0, 0, 0.0, 0.0]
     else
         // Get first order time for reference
         firstOrderTime = array.get(cachedOrderTimes, 0)
@@ -382,6 +385,7 @@ f_renderOrdersFromCache() =>
             
             // Calculate P&L using stack-based matching
             buyPL = f_calculatePLWithStack("buy", totalBuyQty, avgBuyPrice, positionStack)
+            barBuyPL := buyPL  // ASSIGN to return variable
             buyPLColor = buyPL >= 0 ? color.green : color.red
             
             textCol = textColorBuy
@@ -410,6 +414,7 @@ f_renderOrdersFromCache() =>
             
             // Calculate P&L using stack-based matching
             sellPL = f_calculatePLWithStack("sell", totalSellQty, avgSellPrice, positionStack)
+            barSellPL := sellPL  // ASSIGN to return variable
             sellPLColor = sellPL >= 0 ? color.green : color.red
             
             textCol = textColorSell
@@ -431,7 +436,7 @@ f_renderOrdersFromCache() =>
         if timeMatches > 0
             log.info("  Summary: " + str.tostring(timeMatches) + " time matches | " + str.tostring(symbolMatches) + " symbol matches | BUY: " + str.tostring(buyOrderCount) + " | SELL: " + str.tostring(sellOrderCount))
         
-        [buyOrderCount, sellOrderCount]
+        [buyOrderCount, sellOrderCount, barBuyPL, barSellPL]
 
 // Parse and visualize orders
 f_parseAndPlot() =>
@@ -444,6 +449,16 @@ if not cacheInitialized
     cacheInitialized := true
 
 // Execute order parsing
-[totalBuys, totalSells] = f_parseAndPlot()
+[totalBuys, totalSells, barBuyPL, barSellPL] = f_parseAndPlot()
+
+// Update global running P&L
+globalRunningPL := globalRunningPL + barBuyPL + barSellPL
+
+// Display RUNNING P&L label ABOVE bars with orders
+if barBuyPL != 0 or barSellPL != 0
+    runningPLColor = globalRunningPL >= 0 ? color.green : color.red
+    label.new(x=bar_index, y=high * 1.03, text="📊 RUNNING P&L: " + str.tostring(globalRunningPL, "#.##"), 
+              color=color.new(runningPLColor, 15), textcolor=color.white, size=size.large, 
+              style=label.style_label_upper_left, xloc=xloc.bar_index, yloc=yloc.price)
 
 
