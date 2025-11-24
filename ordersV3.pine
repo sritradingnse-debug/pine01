@@ -1,5 +1,5 @@
 //@version=6
-indicator(title="Trade Orders Visualizer", shorttitle="Orders", overlay=true, max_boxes_count=500, max_lines_count=500, max_labels_count=500)
+indicator(title="Trade Orders Visualizer", shorttitle="OrdersPL", overlay=true, max_boxes_count=500, max_lines_count=500, max_labels_count=500)
 
 // ============================================
 // TRADE ORDERS VISUALIZER
@@ -30,12 +30,87 @@ var array<float> cachedOrderQuantities = array.new<float>()
 var array<float> cachedOrderPrices = array.new<float>()
 var bool cacheInitialized = false
 
-// Calculate P&L for a given price and order details
-f_calculatePL(orderType, quantity, entryPrice, currentPrice) =>
+// Stack to track open positions (FIFO matching)
+var array<string> positionStack = array.new<string>()  // Format: "type|qty|price"
+
+// Calculate P&L by matching orders with stack (FIFO)
+f_calculatePLWithStack(orderType, quantity, price, posStack) =>
+    realizedPL = 0.0
+    remainingQty = quantity
+    stackSize = array.size(posStack)
+    
+    log.info("Processing " + orderType + ": " + str.tostring(quantity, "0") + "@" + str.tostring(price, "#.##") + " | Stack size before: " + str.tostring(stackSize))
+    
     if orderType == "buy"
-        (currentPrice - entryPrice) * quantity
-    else
-        (entryPrice - currentPrice) * quantity
+        // Try to match with open SHORT positions
+        i = 0
+        while remainingQty > 0 and i < array.size(posStack)
+            topPos = array.get(posStack, i)
+            posType = str.substring(topPos, 0, str.pos(topPos, "|"))
+            
+            if posType == "sell"
+                parts = str.split(topPos, "|")
+                posQty = str.tonumber(array.get(parts, 1))
+                posPrice = str.tonumber(array.get(parts, 2))
+                
+                if posQty > 0
+                    matchQty = math.min(remainingQty, posQty)
+                    pnl = (posPrice - price) * matchQty  // SHORT: (sellPrice - buyPrice) = profit/loss
+                    realizedPL += pnl
+                    
+                    log.info("  Matched SHORT: Sold @" + str.tostring(posPrice, "#.##") + " Bought @" + str.tostring(price, "#.##") + " Qty:" + str.tostring(matchQty, "0") + " P&L:" + str.tostring(pnl, "#.##"))
+                    
+                    if posQty > matchQty
+                        newPos = "sell|" + str.tostring(posQty - matchQty, "0") + "|" + str.tostring(posPrice, "#.##")
+                        array.set(posStack, i, newPos)
+                        i += 1
+                    else
+                        array.remove(posStack, i)
+                    
+                    remainingQty -= matchQty
+            else
+                break
+        
+        if remainingQty > 0
+            array.push(posStack, "buy|" + str.tostring(remainingQty, "0") + "|" + str.tostring(price, "#.##"))
+            log.info("  Added to stack: BUY " + str.tostring(remainingQty, "0") + "@" + str.tostring(price, "#.##"))
+    
+    else  // SELL
+        i = 0
+        while remainingQty > 0 and i < array.size(posStack)
+            topPos = array.get(posStack, i)
+            posType = str.substring(topPos, 0, str.pos(topPos, "|"))
+            
+            if posType == "buy"
+                parts = str.split(topPos, "|")
+                posQty = str.tonumber(array.get(parts, 1))
+                posPrice = str.tonumber(array.get(parts, 2))
+                
+                if posQty > 0
+                    matchQty = math.min(remainingQty, posQty)
+                    pnl = (price - posPrice) * matchQty
+                    realizedPL += pnl
+                    
+                    log.info("  Matched LONG: Bought @" + str.tostring(posPrice, "#.##") + " Sold @" + str.tostring(price, "#.##") + " Qty:" + str.tostring(matchQty, "0") + " P&L:" + str.tostring(pnl, "#.##"))
+                    
+                    if posQty > matchQty
+                        newPos = "buy|" + str.tostring(posQty - matchQty, "0") + "|" + str.tostring(posPrice, "#.##")
+                        array.set(posStack, i, newPos)
+                        i += 1
+                    else
+                        array.remove(posStack, i)
+                    
+                    remainingQty -= matchQty
+            else
+                break
+        
+        if remainingQty > 0
+            array.push(posStack, "sell|" + str.tostring(remainingQty, "0") + "|" + str.tostring(price, "#.##"))
+            log.info("  Added to stack: SELL " + str.tostring(remainingQty, "0") + "@" + str.tostring(price, "#.##"))
+    
+    log.info("  Realized P&L from this order: " + str.tostring(realizedPL, "#.##") + " | Stack size after: " + str.tostring(array.size(posStack)))
+    
+    realizedPL
 
 // Convert size string to size object
 f_getSize(sizeStr) =>
@@ -305,8 +380,8 @@ f_renderOrdersFromCache() =>
                 avgBuyPrice += array.get(buyPrices, j)
             avgBuyPrice := avgBuyPrice / array.size(buyPrices)
             
-            // Calculate P&L for this buy order
-            buyPL = f_calculatePL("buy", totalBuyQty, avgBuyPrice, close)
+            // Calculate P&L using stack-based matching
+            buyPL = f_calculatePLWithStack("buy", totalBuyQty, avgBuyPrice, positionStack)
             buyPLColor = buyPL >= 0 ? color.green : color.red
             
             textCol = textColorBuy
@@ -316,7 +391,7 @@ f_renderOrdersFromCache() =>
                       color=color.new(color.green, 30), textcolor=color.white, size=f_getSize(orderSize), 
                       style=label.style_label_center)
             
-            // P&L label below BUY order
+            // P&L label below BUY order - showing realized P&L from this order
             plText = str.tostring(buyPL, "#.##")
             label.new(x=bar_index, y=low * 0.99, text=plText, 
                       color=color.new(buyPLColor, 50), textcolor=buyPLColor, size=f_getSize(orderSize), 
@@ -333,8 +408,8 @@ f_renderOrdersFromCache() =>
                 avgSellPrice += array.get(sellPrices, j)
             avgSellPrice := avgSellPrice / array.size(sellPrices)
             
-            // Calculate P&L for this sell order
-            sellPL = f_calculatePL("sell", totalSellQty, avgSellPrice, close)
+            // Calculate P&L using stack-based matching
+            sellPL = f_calculatePLWithStack("sell", totalSellQty, avgSellPrice, positionStack)
             sellPLColor = sellPL >= 0 ? color.green : color.red
             
             textCol = textColorSell
@@ -344,7 +419,7 @@ f_renderOrdersFromCache() =>
                       color=color.new(color.red, 30), textcolor=color.white, size=f_getSize(orderSize), 
                       style=label.style_label_center)
             
-            // P&L label below SELL order
+            // P&L label below SELL order - showing realized P&L from this order
             plText = str.tostring(sellPL, "#.##")
             label.new(x=bar_index, y=low * 0.99, text=plText, 
                       color=color.new(sellPLColor, 50), textcolor=sellPLColor, size=f_getSize(orderSize), 
