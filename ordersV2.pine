@@ -34,6 +34,18 @@ var bool cacheInitialized = false
 f_getSize(sizeStr) =>
     sizeStr == "tiny" ? size.tiny : sizeStr == "small" ? size.small : size.normal
 
+// Strip all quotes from a string
+f_stripQuotes(inputStr) =>
+    result = inputStr
+    // Keep replacing until no more quotes
+    for j = 0 to 10
+        oldLen = str.length(result)
+        result := str.replace(result, "\"", "")
+        result := str.replace(result, "'", "")
+        if str.length(result) == oldLen
+            break
+    result
+
 // Parse CSV symbol to TradingView format
 // Example: NIFTY25NOV25900CE -> NSE:NIFTY251125C25900
 // Format: baseSym + date + month + year(25) + typeOP + strike
@@ -126,7 +138,10 @@ f_initializeOrderCache() =>
                     csvSymbol = str.trim(array.get(parts, 2))
                     qtyStr = str.trim(array.get(parts, 4))
                     priceStr = str.trim(array.get(parts, 5))
-                    statusStr = str.lower(str.trim(array.get(parts, 6)))
+                    statusStr = str.trim(array.get(parts, 6))
+                    
+                    // Remove all quotes from status using helper function
+                    statusStr := str.lower(f_stripQuotes(statusStr))
                     
                     // Skip orders that are not COMPLETE
                     if statusStr != "complete"
