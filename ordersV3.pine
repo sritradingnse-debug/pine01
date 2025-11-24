@@ -10,7 +10,7 @@ indicator(title="Trade Orders Visualizer", shorttitle="OrdersPL", overlay=true, 
 // ============================================
 
 // Input for CSV data
-ordersData = input.text_area(defval="\"Time\",\"Type\",\"Instrument\",\"Product\",\"Qty.\",\"Avg. price\",\"Status\",\"\"\n\"2025-11-24 15:05:14\",\"BUY\",\"NIFTY25NOV25800CE\",\"NRML\",\"525/525\",212.91,\"COMPLETE\",\"\"\n\"2025-11-24 15:04:45\",\"SELL\",\"NIFTY25NOV25800CE\",\"NRML\",\"525/525\",222.21,\"COMPLETE\",\"\"\n\"2025-11-24 15:02:54\",\"BUY\",\"NIFTY25NOV25800CE\",\"NRML\",\"525/525\",244.35,\"COMPLETE\",\"\"", title="Trade Orders CSV Data (New Format)", group="Data Input")
+ordersData = input.text_area(defval="\"Time\",\"Type\",\"Instrument\",\"Product\",\"Qty.\",\"Avg. price\",\"Status\",\"\"\n\"2025-11-24 13:55:42\",\"SELL\",\"NIFTY25NOV25900CE\",\"NRML\",\"450/450\",207.61,\"COMPLETE\",\"\"\n\"2025-11-24 13:56:48\",\"BUY\",\"NIFTY25NOV25900CE\",\"NRML\",\"450/450\",210.03,\"COMPLETE\",\"\"\n\"2025-11-24 13:56:59\",\"BUY\",\"NIFTY25NOV25900CE\",\"NRML\",\"450/450\",212.99,\"COMPLETE\",\"\"\n\"2025-11-24 13:58:27\",\"SELL\",\"NIFTY25NOV25900CE\",\"NRML\",\"450/450\",207.5,\"COMPLETE\",\"\"", title="Trade Orders CSV Data (New Format)", group="Data Input")
 
 // Display settings
 showBuyOrders = input(true, "Show Buy Orders", group="Display")
@@ -32,18 +32,24 @@ var bool cacheInitialized = false
 
 // Stack to track open positions (FIFO matching)
 var array<string> positionStack = array.new<string>()  // Format: "type|qty|price"
-var float globalRunningPL = 0.0  // Global cumulative P&L
+var float globalRunningPL = 0.0  // Global cumulative realized P&L
+var float netPositionQty = 0.0   // Net position: positive = LONG, negative = SHORT
+var float netPositionCost = 0.0  // Total cost basis for current net position
 
-// Calculate P&L by matching orders with stack (FIFO)
-f_calculatePLWithStack(orderType, quantity, price, posStack) =>
+// Calculate effective position and P&L with FIFO matching
+// Returns: [realizedPL, netQty, netCost]
+f_calculatePLWithStack(orderType, quantity, price, posStack, curNetQty, curNetCost) =>
     realizedPL = 0.0
     remainingQty = quantity
+    netQty = curNetQty
+    netCost = curNetCost
     stackSize = array.size(posStack)
     
-    log.info("Processing " + orderType + ": " + str.tostring(quantity, "0") + "@" + str.tostring(price, "#.##") + " | Stack size before: " + str.tostring(stackSize))
+    log.info("\nProcessing " + orderType + ": " + str.tostring(quantity, "0") + "@" + str.tostring(price, "#.##"))
+    log.info("Stack size before: " + str.tostring(stackSize) + " | Net position: " + str.tostring(netQty, "0") + "@" + (netQty != 0 ? str.tostring(netCost / math.abs(netQty), "#.##") : "N/A"))
     
     if orderType == "buy"
-        // Try to match with open SHORT positions
+        // BUY: Try to close SHORT positions first (FIFO - from index 0)
         i = 0
         while remainingQty > 0 and i < array.size(posStack)
             topPos = array.get(posStack, i)
@@ -59,7 +65,10 @@ f_calculatePLWithStack(orderType, quantity, price, posStack) =>
                     pnl = (posPrice - price) * matchQty  // SHORT: (sellPrice - buyPrice) = profit/loss
                     realizedPL += pnl
                     
-                    log.info("  Matched SHORT: Sold @" + str.tostring(posPrice, "#.##") + " Bought @" + str.tostring(price, "#.##") + " Qty:" + str.tostring(matchQty, "0") + " P&L:" + str.tostring(pnl, "#.##"))
+                    log.info("  ✓ Closed SHORT: " + str.tostring(matchQty, "0") + " @ " + str.tostring(posPrice, "#.##") + " (sold) vs " + str.tostring(price, "#.##") + " (bought) = P&L: " + str.tostring(pnl, "#.##"))
+                    
+                    netQty += matchQty
+                    netCost += price * matchQty
                     
                     if posQty > matchQty
                         newPos = "sell|" + str.tostring(posQty - matchQty, "0") + "|" + str.tostring(posPrice, "#.##")
@@ -72,11 +81,15 @@ f_calculatePLWithStack(orderType, quantity, price, posStack) =>
             else
                 break
         
+        // Add unmatched BUY to stack (new LONG position)
         if remainingQty > 0
             array.push(posStack, "buy|" + str.tostring(remainingQty, "0") + "|" + str.tostring(price, "#.##"))
-            log.info("  Added to stack: BUY " + str.tostring(remainingQty, "0") + "@" + str.tostring(price, "#.##"))
+            log.info("  ➕ Added to stack: BUY " + str.tostring(remainingQty, "0") + "@" + str.tostring(price, "#.##"))
+            netQty += remainingQty
+            netCost += price * remainingQty
     
     else  // SELL
+        // SELL: Try to close LONG positions first (FIFO - from index 0)
         i = 0
         while remainingQty > 0 and i < array.size(posStack)
             topPos = array.get(posStack, i)
@@ -89,10 +102,13 @@ f_calculatePLWithStack(orderType, quantity, price, posStack) =>
                 
                 if posQty > 0
                     matchQty = math.min(remainingQty, posQty)
-                    pnl = (price - posPrice) * matchQty
+                    pnl = (price - posPrice) * matchQty  // LONG: (sellPrice - buyPrice) = profit/loss
                     realizedPL += pnl
                     
-                    log.info("  Matched LONG: Bought @" + str.tostring(posPrice, "#.##") + " Sold @" + str.tostring(price, "#.##") + " Qty:" + str.tostring(matchQty, "0") + " P&L:" + str.tostring(pnl, "#.##"))
+                    log.info("  ✓ Closed LONG: " + str.tostring(matchQty, "0") + " @ " + str.tostring(posPrice, "#.##") + " (bought) vs " + str.tostring(price, "#.##") + " (sold) = P&L: " + str.tostring(pnl, "#.##"))
+                    
+                    netQty -= matchQty
+                    netCost -= posPrice * matchQty
                     
                     if posQty > matchQty
                         newPos = "buy|" + str.tostring(posQty - matchQty, "0") + "|" + str.tostring(posPrice, "#.##")
@@ -105,13 +121,20 @@ f_calculatePLWithStack(orderType, quantity, price, posStack) =>
             else
                 break
         
+        // Add unmatched SELL to stack (new SHORT position)
         if remainingQty > 0
             array.push(posStack, "sell|" + str.tostring(remainingQty, "0") + "|" + str.tostring(price, "#.##"))
-            log.info("  Added to stack: SELL " + str.tostring(remainingQty, "0") + "@" + str.tostring(price, "#.##"))
+            log.info("  ➕ Added to stack: SELL " + str.tostring(remainingQty, "0") + "@" + str.tostring(price, "#.##"))
+            netQty -= remainingQty
+            netCost -= price * remainingQty
     
-    log.info("  Realized P&L from this order: " + str.tostring(realizedPL, "#.##") + " | Stack size after: " + str.tostring(array.size(posStack)))
+    // Calculate average entry price for remaining position
+    avgEntryPrice = netQty != 0 ? (netCost / netQty) : 0.0
     
-    realizedPL
+    log.info("  Result: Realized P&L: " + str.tostring(realizedPL, "#.##") + " | Net Pos: " + str.tostring(netQty, "0") + "@" + str.tostring(avgEntryPrice, "#.##"))
+    log.info("  Stack size after: " + str.tostring(array.size(posStack)))
+    
+    [realizedPL, netQty, netCost]
 
 // Convert size string to size object
 f_getSize(sizeStr) =>
@@ -297,10 +320,12 @@ f_renderOrdersFromCache() =>
     sellOrderCount = 0
     barBuyPL = 0.0
     barSellPL = 0.0
+    netPosQty = 0.0
+    netPosCost = 0.0
     
     // Only render if cache is populated
     if array.size(cachedOrderTimes) == 0
-        [0, 0, 0.0, 0.0]
+        [0, 0, 0.0, 0.0, netPosQty, netPosCost]
     else
         // Get first order time for reference
         firstOrderTime = array.get(cachedOrderTimes, 0)
@@ -384,7 +409,7 @@ f_renderOrdersFromCache() =>
             avgBuyPrice := avgBuyPrice / array.size(buyPrices)
             
             // Calculate P&L using stack-based matching
-            buyPL = f_calculatePLWithStack("buy", totalBuyQty, avgBuyPrice, positionStack)
+            [buyPL, netQtyAfter, netCostAfter] = f_calculatePLWithStack("buy", totalBuyQty, avgBuyPrice, positionStack, netPositionQty, netPositionCost)
             barBuyPL := buyPL  // ASSIGN to return variable
             buyPLColor = buyPL >= 0 ? color.green : color.red
             
@@ -413,7 +438,7 @@ f_renderOrdersFromCache() =>
             avgSellPrice := avgSellPrice / array.size(sellPrices)
             
             // Calculate P&L using stack-based matching
-            sellPL = f_calculatePLWithStack("sell", totalSellQty, avgSellPrice, positionStack)
+            [sellPL, netQtyAfter, netCostAfter] = f_calculatePLWithStack("sell", totalSellQty, avgSellPrice, positionStack, netPositionQty, netPositionCost)
             barSellPL := sellPL  // ASSIGN to return variable
             sellPLColor = sellPL >= 0 ? color.green : color.red
             
@@ -436,7 +461,7 @@ f_renderOrdersFromCache() =>
         if timeMatches > 0
             log.info("  Summary: " + str.tostring(timeMatches) + " time matches | " + str.tostring(symbolMatches) + " symbol matches | BUY: " + str.tostring(buyOrderCount) + " | SELL: " + str.tostring(sellOrderCount))
         
-        [buyOrderCount, sellOrderCount, barBuyPL, barSellPL]
+        [buyOrderCount, sellOrderCount, barBuyPL, barSellPL, netPositionQty, netPositionCost]
 
 // Parse and visualize orders
 f_parseAndPlot() =>
@@ -449,15 +474,27 @@ if not cacheInitialized
     cacheInitialized := true
 
 // Execute order parsing
-[totalBuys, totalSells, barBuyPL, barSellPL] = f_parseAndPlot()
+[totalBuys, totalSells, barBuyPL, barSellPL, netPosQty, netPosCost] = f_parseAndPlot()
 
-// Update global running P&L
+// Update global position and running P&L
+netPositionQty := netPosQty
+netPositionCost := netPosCost
 globalRunningPL := globalRunningPL + barBuyPL + barSellPL
 
 // Display RUNNING P&L label ABOVE bars with orders
 if barBuyPL != 0 or barSellPL != 0
     runningPLColor = globalRunningPL >= 0 ? color.green : color.red
-    label.new(x=bar_index, y=high * 1.03, text="📊 RUNNING P&L: " + str.tostring(globalRunningPL, "#.##"), 
+    
+    // Calculate mark-to-market value
+    mtmValue = netPositionQty != 0 ? close * netPositionQty - netPositionCost : 0.0
+    
+    // Build detailed label text
+    positionText = netPositionQty != 0 ? (netPositionQty > 0 ? "LONG " : "SHORT ") + str.tostring(math.abs(netPositionQty), "0") + "@" + str.tostring(math.abs(netPositionCost / netPositionQty), "#.##") : "FLAT"
+    mtmText = netPositionQty != 0 ? " | MTM: " + str.tostring(mtmValue, "#.##") : ""
+    
+    labelText = "📊 P&L: " + str.tostring(globalRunningPL, "#.##") + "\n" + positionText + mtmText
+    
+    label.new(x=bar_index, y=high * 1.03, text=labelText, 
               color=color.new(runningPLColor, 15), textcolor=color.white, size=size.large, 
               style=label.style_label_upper_left, xloc=xloc.bar_index, yloc=yloc.price)
 

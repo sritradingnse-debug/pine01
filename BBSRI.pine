@@ -2,18 +2,12 @@
 indicator(shorttitle="BBSRI50", title="Bollinger Bands", overlay=true, timeframe="", timeframe_gaps=true)
 
 f_ma(source, length, _type) =>
-    if _type == "SMA"
-        ta.sma(source, length)
-    else if _type == "EMA"
-        ta.ema(source, length)
-    else if _type == "SMMA (RMA)"
-        ta.rma(source, length)
-    else if _type == "WMA"
-        ta.wma(source, length)
-    else if _type == "VWMA"
-        ta.vwma(source, length)
-    else
-        ta.ema(source, length)
+    switch _type
+        "SMA" => ta.sma(source, length)
+        "EMA" => ta.ema(source, length)
+        "SMMA (RMA)" => ta.rma(source, length)
+        "WMA" => ta.wma(source, length)
+        "VWMA" => ta.vwma(source, length)
 
 length = input.int(50, minval=1)
 maType = input.string("EMA", "Basis MA Type", options = ["SMA", "EMA", "SMMA (RMA)", "WMA", "VWMA"])
@@ -30,7 +24,7 @@ lower = basis - dev
 upper2 = basis + dev2
 lower2 = basis - dev2
 
-plot(basis, "Basis", color=#00D9FF, offset = offset, style = plot.style_line)
+plot(basis, "Basis", color=#00D9FF, offset = offset, style = plot.style_linebr)
 p1 = plot(upper, "Upper1", color=#00D9FF, offset = offset)
 p2 = plot(lower, "Lower2", color=#00D9FF, offset = offset)
 //fill(p1, p2, title = "Background", color=color.rgb(33, 150, 243, 95))
