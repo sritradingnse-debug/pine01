@@ -1,5 +1,5 @@
 //@version=6
-indicator(title="Trade Orders Visualizer", shorttitle="Orders", overlay=true, max_boxes_count=500, max_lines_count=500)
+indicator(title="Trade Orders Visualizer", shorttitle="Orders", overlay=true, max_boxes_count=500, max_lines_count=500, max_labels_count=500)
 
 // ============================================
 // TRADE ORDERS VISUALIZER
@@ -20,7 +20,7 @@ sellColor = input(color.new(color.red, 20), "Sell Order Color", group="Display")
 textColorBuy = input(color.green, "Buy Text Color", group="Display")
 textColorSell = input(color.red, "Sell Text Color", group="Display")
 orderSize = input.string("small", "Label Size", options=["tiny", "small", "normal"], group="Display")
-matchSymbol = input(true, "Match Current Symbol", tooltip="Only show orders for the current chart symbol", group="Display")
+matchSymbol = input(false, "Match Current Symbol", tooltip="Only show orders for the current chart symbol", group="Display")
 
 // Global cache storage for parsed orders (initialized once)
 var array<int> cachedOrderTimes = array.new<int>()
