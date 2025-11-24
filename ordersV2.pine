@@ -302,7 +302,7 @@ f_renderOrdersFromCache() =>
             labelY = avgBuyPrice
             labelText = "🔼 BUY\n" + str.tostring(totalBuyQty, "0") + "@" + str.tostring(avgBuyPrice, "#.##")
             label.new(x=bar_index, y=labelY, text=labelText, 
-                      color=color.new(color.white, 100), textcolor=textCol, size=f_getSize(orderSize), 
+                      color=color.new(color.green, 30), textcolor=color.white, size=f_getSize(orderSize), 
                       style=label.style_label_center)
             buyOrderCount := array.size(buyQtys)
         
@@ -319,7 +319,7 @@ f_renderOrdersFromCache() =>
             labelY = avgSellPrice
             labelText = "🔽 SELL\n" + str.tostring(totalSellQty, "0") + "@" + str.tostring(avgSellPrice, "#.##")
             label.new(x=bar_index, y=labelY, text=labelText, 
-                      color=color.new(color.white, 100), textcolor=textCol, size=f_getSize(orderSize), 
+                      color=color.new(color.red, 30), textcolor=color.white, size=f_getSize(orderSize), 
                       style=label.style_label_center)
             sellOrderCount := array.size(sellQtys)
         
