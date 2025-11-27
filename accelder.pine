@@ -3,14 +3,15 @@
 //@version=6
 indicator(title="Elder Impulse System - ACCD (AD-based Volume Weighted)", shorttitle="Elder Impulse ACCD", overlay=true)
 
-// Getting inputs
+// Inputs
 fast_length = input.int(title="Fast Length", defval=12, minval=1)
 slow_length = input.int(title="Slow Length", defval=26, minval=1)
 signal_length = input.int(title="Signal Smoothing", defval=9, minval=1, maxval=50)
 sma_source = input.string(title="Oscillator MA Type", defval="EMA", options=["SMA", "EMA"])
 sma_signal = input.string(title="Signal Line MA Type", defval="EMA", options=["SMA", "EMA"])
+ema_length = input.int(title="EMA Length", defval=13, minval=1)
 
-// Validate volume
+// Volume validation
 var cumVol = 0.
 cumVol += nz(volume)
 if barstate.islast and cumVol == 0
@@ -19,8 +20,7 @@ if barstate.islast and cumVol == 0
 // Calculate Accumulation/Distribution Line
 ad = ta.cum(close==high and close==low or high==low ? 0 : ((2*close-low-high)/(high-low))*volume)
 
-// Volume-Weighted AD (ACCD)
-// Calculate volume-weighted average on AD line
+// Volume-Weighted MACD on AD
 close_vol_fast = ta.ema(ad * volume, fast_length)
 vol_fast = ta.ema(volume, fast_length)
 vw_ad_fast = close_vol_fast / vol_fast
@@ -29,19 +29,11 @@ close_vol_slow = ta.ema(ad * volume, slow_length)
 vol_slow = ta.ema(volume, slow_length)
 vw_ad_slow = close_vol_slow / vol_slow
 
-// Standard MACD on AD (for reference, comment out if not needed)
-src = ad
-fast_ma = sma_source == "SMA" ? ta.sma(src, fast_length) : ta.ema(src, fast_length)
-slow_ma = sma_source == "SMA" ? ta.sma(src, slow_length) : ta.ema(src, slow_length)
-macd = fast_ma - slow_ma
-
-// Volume-Weighted MACD on AD
 macd_vw = vw_ad_fast - vw_ad_slow
 signal = sma_signal == "SMA" ? ta.sma(macd_vw, signal_length) : ta.ema(macd_vw, signal_length)
 hist = macd_vw - signal
 
-// EMA for Elder Impulse trend component
-ema_length = input.int(title="EMA Length", defval=13, minval=1)
+// EMA for Elder Impulse trend component (using price for trend, MACD for momentum)
 ema = ta.ema(close, ema_length)
 
 // Calculate Elder Impulse conditions
@@ -49,15 +41,11 @@ elder_bulls = (ema > ema[1]) and (hist > hist[1])
 elder_bears = (ema < ema[1]) and (hist < hist[1])
 elder_color = elder_bulls ? color.green : elder_bears ? color.red : color.blue
 
-// Alert conditions
-alertcondition(hist[1] >= 0 and hist < 0, title="Rising to Falling", message="ACCD histogram switched from rising to falling")
-alertcondition(hist[1] <= 0 and hist > 0, title="Falling to Rising", message="ACCD histogram switched from falling to rising")
-alertcondition(elder_bulls, title="Elder Bulls", message="Elder Impulse: Bulls in Control")
-alertcondition(elder_bears, title="Elder Bears", message="Elder Impulse: Bears in Control")
+// Logging conditions
+if barstate.isconfirmed
+    ema_change = ema > ema[1] ? "UP" : "DOWN"
+    hist_change = hist > hist[1] ? "UP" : "DOWN"
+    log.info("Bar: EMA=" + str.tostring(ema, "#.00") + " (" + ema_change + "), HIST=" + str.tostring(hist, "#.00") + " (" + hist_change + "), Color=" + (elder_bulls ? "GREEN" : elder_bears ? "RED" : "BLUE"))
 
 // Plotting
 barcolor(elder_color)
-hline(0, "Zero Line", color=color.new(#787B86, 50))
-plot(hist, title="VW-ACCD Histogram", style=plot.style_columns, color=(hist >= 0 ? (hist[1] < hist ? #26A69A : #B2DFDB) : (hist[1] < hist ? #FFCDD2 : #FF5252)))
-plot(macd_vw, title="VW-ACCD", color=#2962FF)
-plot(signal, title="Signal", color=#FF6D00)
