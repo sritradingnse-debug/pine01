@@ -1,5 +1,5 @@
 //@version=6
-indicator(title="ACCDv2", shorttitle="ACCDv2", timeframe="", timeframe_gaps=true)
+indicator(title="ACCDv3", shorttitle="ACCDv3", timeframe="", timeframe_gaps=true)
 // Getting inputs
 fast_length = input(title = "Fast Length", defval = 12)
 slow_length = input(title = "Slow Length", defval = 26)
@@ -10,18 +10,10 @@ if barstate.islast and cumVol == 0
 ad = ta.cum(close==high and close==low or high==low ? 0 : ((2*close-low-high)/(high-low))*volume)
 
 // Source for MACD calculation
-src_price = input(title = "Source", defval = close)
 src_ad = ad
 signal_length = input.int(title = "Signal Smoothing",  minval = 1, maxval = 50, defval = 9, display = display.data_window)
-sma_source = input.string(title = "Oscillator MA Type",  defval = "EMA", options = ["SMA", "EMA"], display = display.data_window)
 sma_signal = input.string(title = "Signal Line MA Type", defval = "EMA", options = ["SMA", "EMA"], display = display.data_window)
 vol_length = input.int(20, "Volume MA Length", display = display.data_window)
-
-// Calculating - Traditional MACD on price
-fast_ma_price = sma_source == "SMA" ? ta.sma(src_price, fast_length) : ta.ema(src_price, fast_length)
-slow_ma_price = sma_source == "SMA" ? ta.sma(src_price, slow_length) : ta.ema(src_price, slow_length)
-macd_price = fast_ma_price - slow_ma_price
-signal_price = sma_signal == "SMA" ? ta.sma(macd_price, signal_length) : ta.ema(macd_price, signal_length)
 
 // Calculating - Volume-Weighted MACD on A/D
 close_vol_fast = ta.ema(src_ad * volume, fast_length)
@@ -40,9 +32,9 @@ hist = macd - signal
 vol_avg = ta.sma(volume, vol_length)
 vol_strength = volume > vol_avg
 
-// Volume Divergence Detection
+// Volume Divergence Detection using Volume-Weighted MACD
 ad_trend = ad > ta.sma(ad, 5)
-macd_trend = macd_price > 0
+macd_trend = macd > 0
 divergence = ad_trend != macd_trend
 
 // Volume Rate of Change
@@ -51,8 +43,8 @@ vroc = ta.roc(volume, 5)
 hline(0, "Zero Line", color = color.new(#787B86, 50))
 
 // Divergence Alert Conditions
-bullish_divergence = ad_trend and not macd_trend and macd_price < 0
-bearish_divergence = not ad_trend and macd_trend and macd_price > 0
+bullish_divergence = ad_trend and not macd_trend and macd < 0
+bearish_divergence = not ad_trend and macd_trend and macd > 0
 alertcondition(bullish_divergence, title = 'Bullish Divergence', message = 'Bullish Divergence: A/D trending up but MACD trending down')
 alertcondition(bearish_divergence, title = 'Bearish Divergence', message = 'Bearish Divergence: A/D trending down but MACD trending up')
 hist_color = (hist >= 0 ? (hist[1] < hist ? (vol_strength ? #1B5E20 : #26A69A) : #B2DFDB) : (hist[1] < hist ? (vol_strength ? #B71C1C : #FFCDD2) : #FF5252))
