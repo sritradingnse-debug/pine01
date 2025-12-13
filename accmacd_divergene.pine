@@ -1,19 +1,24 @@
 //@version=6
-indicator(title="ACCDv3", shorttitle="ACCDv3", timeframe="", timeframe_gaps=true)
+indicator(title="ACCDv4", shorttitle="ACCDv4")
 // Getting inputs
 fast_length = input(title = "Fast Length", defval = 12)
 slow_length = input(title = "Slow Length", defval = 26)
+signal_length = input.int(title = "Signal Smoothing",  minval = 1, maxval = 50, defval = 9, display = display.data_window)
+sma_signal = input.string(title = "Signal Line MA Type", defval = "EMA", options = ["SMA", "EMA"], display = display.data_window)
+vol_length = input.int(20, "Volume MA Length", display = display.data_window)
+ad_trend_length = input.int(5, "A/D Trend Length", minval = 1, maxval = 20, display = display.data_window)
+vol_surge_multiplier = input.float(2.0, "Volume Surge Multiplier", minval = 1.5, maxval = 5.0, step = 0.5, display = display.data_window)
+
+// Debug: Mouse pointer bar selection
+debug_enabled = input.bool(false, "Enable Debug Logging", display = display.data_window)
+
+// A/D Line Calculation
 var cumVol = 0.
 cumVol += nz(volume)
 if barstate.islast and cumVol == 0
     runtime.error("No volume is provided by the data vendor.")
 ad = ta.cum(close==high and close==low or high==low ? 0 : ((2*close-low-high)/(high-low))*volume)
-
-// Source for MACD calculation
 src_ad = ad
-signal_length = input.int(title = "Signal Smoothing",  minval = 1, maxval = 50, defval = 9, display = display.data_window)
-sma_signal = input.string(title = "Signal Line MA Type", defval = "EMA", options = ["SMA", "EMA"], display = display.data_window)
-vol_length = input.int(20, "Volume MA Length", display = display.data_window)
 
 // Calculating - Volume-Weighted MACD on A/D
 close_vol_fast = ta.ema(src_ad * volume, fast_length)
@@ -28,29 +33,45 @@ macd = vw_ad_fast - vw_ad_slow
 signal = sma_signal == "SMA" ? ta.sma(macd, signal_length) : ta.ema(macd, signal_length)
 hist = macd - signal
 
-// Volume Strength Filter
+// Volume Analysis
 vol_avg = ta.sma(volume, vol_length)
 vol_strength = volume > vol_avg
+vol_surge = volume > vol_avg * vol_surge_multiplier
 
-// Volume Divergence Detection using Volume-Weighted MACD
-ad_trend = ad > ta.sma(ad, 5)
-macd_trend = macd > 0
-divergence = ad_trend != macd_trend
+// Zero Line Crosses
+macd_cross_above = ta.crossover(macd, 0)
+macd_cross_below = ta.crossunder(macd, 0)
 
-// Volume Rate of Change
-vroc = ta.roc(volume, 5)
+// Signal Line Crosses
+macd_signal_cross_up = ta.crossover(macd, signal)
+macd_signal_cross_down = ta.crossunder(macd, signal)
 
 hline(0, "Zero Line", color = color.new(#787B86, 50))
 
-// Divergence Alert Conditions
-bullish_divergence = ad_trend and not macd_trend and macd < 0
-bearish_divergence = not ad_trend and macd_trend and macd > 0
-alertcondition(bullish_divergence, title = 'Bullish Divergence', message = 'Bullish Divergence: A/D trending up but MACD trending down')
-alertcondition(bearish_divergence, title = 'Bearish Divergence', message = 'Bearish Divergence: A/D trending down but MACD trending up')
-hist_color = (hist >= 0 ? (hist[1] < hist ? (vol_strength ? #1B5E20 : #26A69A) : #B2DFDB) : (hist[1] < hist ? (vol_strength ? #B71C1C : #FFCDD2) : #FF5252))
+// Alert Conditions
+alertcondition(vol_surge, title = 'Volume Surge', message = 'Volume Surge: {{plot_0}}x average')
+alertcondition(macd_cross_above, title = 'MACD Cross Above Zero', message = 'MACD crossed above zero line - Bullish')
+alertcondition(macd_cross_below, title = 'MACD Cross Below Zero', message = 'MACD crossed below zero line - Bearish')
+
+// Enhanced histogram coloring with volume surge emphasis
+hist_color = vol_surge ? (hist >= 0 ? #00FF00 : #FF0000) : (hist >= 0 ? (hist > hist[1] ? #26A69A : #B2DFDB) : (hist > hist[1] ? #FFCDD2 : #FF5252))
+
 plot(hist, title = "Histogram", style = plot.style_columns, color = hist_color)
 plot(macd,   title = "A/D MACD",   color = #66DD66, linewidth = 2)
 plot(signal, title = "A/D Signal", color = #DD8844, linewidth = 2)
 
-// Background color alert for divergence
-bgcolor(bullish_divergence ? color.new(color.green, 85) : (bearish_divergence ? color.new(color.red, 85) : na), title = "Divergence Background")
+// Simple volume surge bar coloring
+bar_color = vol_surge ? (close > open ? #00FF00 : #FF0000) : na
+barcolor(bar_color, title = "Volume Surge Bar Color")
+
+// Enhanced background colors (simple volume surge only)
+bgcolor(vol_surge ? color.new(#0033FF, 85) : na, title = "Volume Surge Background")
+
+
+
+// DEBUG LOGGING (simplified - volume surge only)
+if debug_enabled
+    log.info("Bar: " + str.tostring(bar_index) + " | Close: " + str.tostring(close, "0.00") + " | Volume: " + str.tostring(volume))
+    log.info("  Vol_Avg: " + str.tostring(vol_avg, "0.00") + " | Vol_Strength: " + str.tostring(vol_strength) + " | Vol_Surge: " + str.tostring(vol_surge))
+    log.info("  MACD: " + str.tostring(macd, "0.00") + " | Signal: " + str.tostring(signal, "0.00") + " | Histogram: " + str.tostring(hist, "0.00"))
+    log.info("---")
